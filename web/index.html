@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>SDN Dashboard</title>
+    <style>
+        body { font-family: monospace; background: #0d1117; color: #58d68d; padding: 2rem; }
+        h1 { color: #ffffff; }
+        .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-top: 1rem; }
+        .card { background: #161b22; border-radius: 8px; padding: 1.5rem; border: 1px solid #30363d; }
+        .card h2 { color: #8b949e; font-size: 0.9rem; margin: 0 0 0.5rem; }
+        .card p { font-size: 2rem; margin: 0; color: #58d68d; }
+        .status { color: #8b949e; margin-top: 1rem; }
+        h2 { color: #ffffff; margin-top: 2rem; }
+        #historial { margin-top: 1rem; max-height: 200px; overflow-y: auto; border: 1px solid #30363d; border-radius: 8px; padding: 0.5rem; background: #161b22; }
+        .entry { padding: 0.4rem 0.5rem; border-bottom: 1px solid #30363d; font-size: 0.8rem; color: #8b949e; }
+        .entry:last-child { border-bottom: none; }
+        .entry span { color: #58d68d; }
+    </style>
+</head>
+<body>
+    <h1>Receptor SDN — Datos en tiempo real</h1>
+    <p class="status" id="status">Esperando señal...</p>
+    <div class="grid">
+        <div class="card"><h2>Temperatura</h2><p id="temperatura">--</p></div>
+        <div class="card"><h2>Humedad</h2><p id="humedad">--</p></div>
+        <div class="card"><h2>Latitud</h2><p id="latitud">--</p></div>
+        <div class="card"><h2>Longitud</h2><p id="longitud">--</p></div>
+        <div class="card"><h2>Gas LP</h2><p id="gas_lp">--</p></div>
+        <div class="card"><h2>CO2</h2><p id="co2">--</p></div>
+    </div>
+
+    <h2>Historial de JSON recibidos</h2>
+    <div id="historial"></div>
+
+    <script>
+        const ws = new WebSocket(`ws://${location.host}`);
+        ws.onopen = () => document.getElementById('status').textContent = 'Conectado ✓';
+        ws.onclose = () => document.getElementById('status').textContent = 'Desconectado';
+        ws.onmessage = ({ data }) => {
+            const json = JSON.parse(data);
+
+            // Actualiza tarjetas
+            Object.keys(json).forEach(k => {
+                const el = document.getElementById(k);
+                if (el) el.textContent = json[k];
+            });
+
+            // Agrega al historial
+            const historial = document.getElementById('historial');
+            const hora = new Date().toLocaleTimeString();
+            const entry = document.createElement('div');
+            entry.className = 'entry';
+            entry.innerHTML = `<span>${hora}</span> — ` +
+                Object.entries(json).map(([k,v]) => `${k}: <span>${v}</span>`).join(' | ');
+            historial.insertBefore(entry, historial.firstChild);
+
+            // Máximo 20 entradas
+            if (historial.children.length > 20) {
+                historial.removeChild(historial.lastChild);
+            }
+        };
+    </script>
+</body>
+</html>
