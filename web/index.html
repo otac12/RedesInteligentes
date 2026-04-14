@@ -2,62 +2,140 @@
 <html>
 <head>
     <title>SDN Dashboard</title>
+    <script src="https://cdn.plot.ly/plotly-2.35.0.min.js"></script>
     <style>
-        body { font-family: monospace; background: #0d1117; color: #58d68d; padding: 2rem; }
-        h1 { color: #ffffff; }
-        .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-top: 1rem; }
-        .card { background: #161b22; border-radius: 8px; padding: 1.5rem; border: 1px solid #30363d; }
-        .card h2 { color: #8b949e; font-size: 0.9rem; margin: 0 0 0.5rem; }
-        .card p { font-size: 2rem; margin: 0; color: #58d68d; }
-        .status { color: #8b949e; margin-top: 1rem; }
-        h2 { color: #ffffff; margin-top: 2rem; }
-        #historial { margin-top: 1rem; max-height: 200px; overflow-y: auto; border: 1px solid #30363d; border-radius: 8px; padding: 0.5rem; background: #161b22; }
-        .entry { padding: 0.4rem 0.5rem; border-bottom: 1px solid #30363d; font-size: 0.8rem; color: #8b949e; }
-        .entry:last-child { border-bottom: none; }
-        .entry span { color: #58d68d; }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Segoe UI', sans-serif; background: #0d1117; color: #c9d1d9; padding: 1.5rem; }
+        h1 { color: #fff; margin-bottom: 0.5rem; }
+        .status { color: #8b949e; margin-bottom: 1rem; font-size: 0.9rem; }
+        .controls { display: flex; align-items: center; gap: 1rem; margin-bottom: 1.5rem; }
+        .controls label { color: #8b949e; font-size: 0.9rem; }
+        .controls input[type="date"] {
+            background: #161b22; color: #c9d1d9; border: 1px solid #30363d;
+            border-radius: 6px; padding: 0.4rem 0.6rem; font-size: 0.9rem;
+        }
+        .cards { display: grid; grid-template-columns: repeat(5, 1fr); gap: 0.8rem; margin-bottom: 1.5rem; }
+        .card { background: #161b22; border-radius: 8px; padding: 1rem; border: 1px solid #30363d; text-align: center; }
+        .card h3 { color: #8b949e; font-size: 0.75rem; margin-bottom: 0.3rem; text-transform: uppercase; }
+        .card p { font-size: 1.6rem; color: #58d68d; font-weight: bold; }
+        .charts { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+        .chart-box { background: #161b22; border-radius: 8px; border: 1px solid #30363d; padding: 0.5rem; }
     </style>
 </head>
 <body>
-    <h1>Receptor SDN — Datos en tiempo real</h1>
-    <p class="status" id="status">Esperando señal...</p>
-    <div class="grid">
-        <div class="card"><h2>Temperatura</h2><p id="temperatura">--</p></div>
-        <div class="card"><h2>Humedad</h2><p id="humedad">--</p></div>
-        <div class="card"><h2>Latitud</h2><p id="latitud">--</p></div>
-        <div class="card"><h2>Longitud</h2><p id="longitud">--</p></div>
-        <div class="card"><h2>Gas LP</h2><p id="gas_lp">--</p></div>
-        <div class="card"><h2>CO2</h2><p id="co2">--</p></div>
+    <h1>SDN Dashboard — Sensores en tiempo real</h1>
+    <p class="status">Dirección: <span id="direccion" style="color:#58d68d; font-weight:bold;"></span></p>
+    <p class="status" id="status">Conectando...</p>
+
+    <div class="controls">
+        <label for="fecha">Fecha:</label>
+        <input type="date" id="fecha">
     </div>
 
-    <h2>Historial de JSON recibidos</h2>
-    <div id="historial"></div>
+    <div class="cards">
+        <div class="card"><h3>Temperatura</h3><p id="val-temp">--</p></div>
+        <div class="card"><h3>Humedad</h3><p id="val-hum">--</p></div>
+        <div class="card"><h3>Latitud</h3><p id="val-lat">--</p></div>
+        <div class="card"><h3>Longitud</h3><p id="val-lon">--</p></div>
+        <div class="card"><h3>Gas LP</h3><p id="val-gas">--</p></div>
+    </div>
+
+    <div class="charts">
+        <div class="chart-box"><div id="chart-temp"></div></div>
+        <div class="chart-box"><div id="chart-hum"></div></div>
+        <div class="chart-box"><div id="chart-gps"></div></div>
+        <div class="chart-box"><div id="chart-gas"></div></div>
+    </div>
 
     <script>
+        const plotLayout = (title) => ({
+            title: { text: title, font: { color: '#c9d1d9', size: 14 } },
+            paper_bgcolor: '#161b22',
+            plot_bgcolor: '#161b22',
+            font: { color: '#8b949e' },
+            xaxis: { title: 'Hora', gridcolor: '#21262d', color: '#8b949e' },
+            yaxis: { gridcolor: '#21262d', color: '#8b949e' },
+            margin: { t: 40, r: 20, b: 40, l: 50 },
+            showlegend: true,
+            legend: { font: { color: '#8b949e' } }
+        });
+
+        const plotConfig = { responsive: true, displayModeBar: false };
+
+        // Inicializar graficas vacias
+        Plotly.newPlot('chart-temp', [{ x: [], y: [], mode: 'lines+markers', name: 'Temperatura (°C)', line: { color: '#f97316' } }], plotLayout('Temperatura (DHT11)'), plotConfig);
+        Plotly.newPlot('chart-hum',  [{ x: [], y: [], mode: 'lines+markers', name: 'Humedad (%)', line: { color: '#3b82f6' } }], plotLayout('Humedad (DHT11)'), plotConfig);
+        Plotly.newPlot('chart-gps',  [
+            { x: [], y: [], mode: 'lines+markers', name: 'Latitud', line: { color: '#10b981' } },
+            { x: [], y: [], mode: 'lines+markers', name: 'Longitud', line: { color: '#8b5cf6' } }
+        ], plotLayout('GPS (Neo6)'), plotConfig);
+        Plotly.newPlot('chart-gas',  [{ x: [], y: [], mode: 'lines+markers', name: 'Gas LP (ppm)', line: { color: '#ef4444' } }], plotLayout('Gas LP (MQ2)'), plotConfig);
+
+        // Cargar datos historicos
+        async function cargarDatos(fecha) {
+            const res = await fetch(`/api/lecturas?fecha=${fecha}`);
+            const rows = await res.json();
+
+            const horas = rows.map(r => r.timestamp.slice(11, 19));
+            const temp = rows.map(r => r.temperatura);
+            const hum  = rows.map(r => r.humedad);
+            const lat  = rows.map(r => r.latitud);
+            const lon  = rows.map(r => r.longitud);
+            const gas  = rows.map(r => r.gas_lp);
+
+            Plotly.react('chart-temp', [{ x: horas, y: temp, mode: 'lines+markers', name: 'Temperatura (°C)', line: { color: '#f97316' } }], plotLayout('Temperatura (DHT11)'), plotConfig);
+            Plotly.react('chart-hum',  [{ x: horas, y: hum,  mode: 'lines+markers', name: 'Humedad (%)', line: { color: '#3b82f6' } }], plotLayout('Humedad (DHT11)'), plotConfig);
+            Plotly.react('chart-gps',  [
+                { x: horas, y: lat, mode: 'lines+markers', name: 'Latitud', line: { color: '#10b981' } },
+                { x: horas, y: lon, mode: 'lines+markers', name: 'Longitud', line: { color: '#8b5cf6' } }
+            ], plotLayout('GPS (Neo6)'), plotConfig);
+            Plotly.react('chart-gas',  [{ x: horas, y: gas,  mode: 'lines+markers', name: 'Gas LP (ppm)', line: { color: '#ef4444' } }], plotLayout('Gas LP (MQ2)'), plotConfig);
+
+            // Actualizar tarjetas con ultimo valor
+            if (rows.length > 0) {
+                const last = rows[rows.length - 1];
+                actualizarTarjetas(last);
+            }
+        }
+
+        function actualizarTarjetas(d) {
+            document.getElementById('val-temp').textContent = d.temperatura ?? '--';
+            document.getElementById('val-hum').textContent  = d.humedad ?? '--';
+            document.getElementById('val-lat').textContent   = d.latitud ?? '--';
+            document.getElementById('val-lon').textContent   = d.longitud ?? '--';
+            document.getElementById('val-gas').textContent   = d.gas_lp ?? '--';
+        }
+
+        // Mostrar IP y puerto del servidor
+        document.getElementById('direccion').textContent = location.host;
+
+        // Fecha por defecto: hoy
+        const fechaInput = document.getElementById('fecha');
+        const hoy = new Date().toISOString().slice(0, 10);
+        fechaInput.value = hoy;
+        cargarDatos(hoy);
+
+        fechaInput.addEventListener('change', () => cargarDatos(fechaInput.value));
+
+        // WebSocket para tiempo real
         const ws = new WebSocket(`ws://${location.host}`);
         ws.onopen = () => document.getElementById('status').textContent = 'Conectado ✓';
-        ws.onclose = () => document.getElementById('status').textContent = 'Desconectado';
+        ws.onclose = () => document.getElementById('status').textContent = 'Desconectado ✗';
+
         ws.onmessage = ({ data }) => {
-            const json = JSON.parse(data);
+            const d = JSON.parse(data);
+            const hora = d.timestamp.slice(11, 19);
 
-            // Actualiza tarjetas
-            Object.keys(json).forEach(k => {
-                const el = document.getElementById(k);
-                if (el) el.textContent = json[k];
-            });
+            // Solo agregar al grafico si estamos viendo el dia de hoy
+            const fechaDelDato = d.timestamp.slice(0, 10);
+            if (fechaInput.value !== fechaDelDato) return;
 
-            // Agrega al historial
-            const historial = document.getElementById('historial');
-            const hora = new Date().toLocaleTimeString();
-            const entry = document.createElement('div');
-            entry.className = 'entry';
-            entry.innerHTML = `<span>${hora}</span> — ` +
-                Object.entries(json).map(([k,v]) => `${k}: <span>${v}</span>`).join(' | ');
-            historial.insertBefore(entry, historial.firstChild);
+            Plotly.extendTraces('chart-temp', { x: [[hora]], y: [[d.temperatura]] }, [0]);
+            Plotly.extendTraces('chart-hum',  { x: [[hora]], y: [[d.humedad]] }, [0]);
+            Plotly.extendTraces('chart-gps',  { x: [[hora], [hora]], y: [[d.latitud], [d.longitud]] }, [0, 1]);
+            Plotly.extendTraces('chart-gas',  { x: [[hora]], y: [[d.gas_lp]] }, [0]);
 
-            // Máximo 20 entradas
-            if (historial.children.length > 20) {
-                historial.removeChild(historial.lastChild);
-            }
+            actualizarTarjetas(d);
         };
     </script>
 </body>
