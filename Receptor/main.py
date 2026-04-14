@@ -1,7 +1,7 @@
 import network, json, struct, time
 import urequests
 from machine import Pin, SPI
-from nrf24l01 import NRF24L01
+from nrf24l01 import NRF24L01, POWER_3, SPEED_250K
 
 class LCD:
     def __init__(self, rs, e, d4, d5, d6, d7):
@@ -54,19 +54,32 @@ class LCD:
         for c in text:
             self._write4(ord(c), rs=1)
 
-# --- WiFi AP ---
-ap = network.WLAN(network.AP_IF)
-ap.active(True)
-ap.config(essid="ESP32-SDN", password="12345678")
-print("AP listo:", ap.ifconfig())
-
 # --- LCD (pines reasignados para liberar SPI: 18, 19, 23) ---
 lcd = LCD(rs=13, e=12, d4=14, d5=27, d6=26, d7=25)
 lcd.clear()
 lcd.move(0, 0)
-lcd.write("POST destino:")
+lcd.write("Iniciando...")
 lcd.move(1, 0)
-lcd.write("192.168.4.2:3000")
+lcd.write("Receptor ESP32")
+
+# --- WiFi AP ---
+print("=" * 40)
+print("  RECEPTOR - Diagnostico")
+print("=" * 40)
+
+ap = network.WLAN(network.AP_IF)
+ap.active(True)
+ap.config(essid="ESP32-SDN", password="12345678")
+ip_info = ap.ifconfig()
+print("[OK] WiFi AP: ESP32-SDN")
+print("     IP:", ip_info[0])
+
+lcd.clear()
+lcd.move(0, 0)
+lcd.write("WiFi: ESP32-SDN")
+lcd.move(1, 0)
+lcd.write("IP:" + ip_info[0])
+time.sleep(2)
 
 # --- NRF24L01 Receptor ---
 spi = SPI(1, baudrate=4000000, polarity=0, phase=0,
@@ -74,18 +87,68 @@ spi = SPI(1, baudrate=4000000, polarity=0, phase=0,
 csn = Pin(5, Pin.OUT)
 ce  = Pin(4, Pin.OUT)
 
-nrf = NRF24L01(spi, csn, ce, payload_size=20)
-nrf.open_rx_pipe(1, b"sens1")   # mismo canal que el emisor
-nrf.set_power_speed(NRF24L01.POWER_3, NRF24L01.SPEED_250K)
-nrf.start_listening()
+nrf_ok = False
+try:
+    nrf = NRF24L01(spi, csn, ce, payload_size=20)
+    nrf.open_rx_pipe(1, b"sens1")
+    nrf.set_power_speed(POWER_3, SPEED_250K)
+    nrf.start_listening()
+    nrf_ok = True
+    print("[OK] NRF24L01 configurado")
+    lcd.clear()
+    lcd.move(0, 0)
+    lcd.write("NRF24L01: OK")
+except Exception as e:
+    print("[NO] NRF24L01:", e)
+    lcd.clear()
+    lcd.move(0, 0)
+    lcd.write("NRF24L01: ERROR")
+lcd.move(1, 0)
+lcd.write("Pipe: sens1")
+time.sleep(2)
 
-# IP de tu PC en la red del ESP32
+# --- Ping al servidor Node.js ---
 NODE_URL = "http://192.168.4.2:3000/datos"
+PING_URL = "http://192.168.4.2:3000/ping"
+
+lcd.clear()
+lcd.move(0, 0)
+lcd.write("Server ping...")
+lcd.move(1, 0)
+lcd.write("192.168.4.2:3000")
+
+srv_ok = False
+try:
+    r = urequests.get(PING_URL)
+    if r.status_code == 200:
+        srv_ok = True
+        print("[OK] Server: pong")
+        lcd.clear()
+        lcd.move(0, 0)
+        lcd.write("Server: PONG!")
+        lcd.move(1, 0)
+        lcd.write("Conectado :)")
+    r.close()
+except Exception as e:
+    print("[NO] Server:", e)
+    lcd.clear()
+    lcd.move(0, 0)
+    lcd.write("Server: NO")
+    lcd.move(1, 0)
+    lcd.write("Sin conexion")
+time.sleep(2)
+
+# --- Resumen ---
+print("=" * 40)
+lcd.clear()
+lcd.move(0, 0)
+lcd.write("WiFi:{} NRF:{}".format("OK" if ap.active() else "NO", "OK" if nrf_ok else "NO"))
+lcd.move(1, 0)
+lcd.write("SRV:{} Escucha..".format("OK" if srv_ok else "NO"))
+print("Esperando datos por NRF24L01...")
 
 keys = ["temperatura", "humedad", "latitud", "longitud", "gas_lp"]
 idx = 0
-
-print("Esperando datos por NRF24L01...")
 while True:
     if nrf.any():
         payload = nrf.recv()
