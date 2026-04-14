@@ -95,6 +95,7 @@ El firmware incluido es `ESP32_GENERIC-20260406-v1.28.0.bin`.
    ```bash
    pip install esptool
    ```
+   > **Nota Windows:** Si después de instalar `esptool` no se reconoce el comando, usa `python -m esptool` en lugar de `esptool` en todos los pasos siguientes.
 3. Instalar Thonny (IDE para subir archivos al ESP32):
    - Descargar desde https://thonny.org
 
@@ -108,7 +109,7 @@ El firmware incluido es `ESP32_GENERIC-20260406-v1.28.0.bin`.
 ### Paso 2: Borrar la flash del ESP32
 
 ```bash
-esptool --port COM3 erase_flash
+python -m esptool --port COM3 erase_flash
 ```
 
 > Cambia `COM3` por tu puerto real. Si el ESP32 no responde, mantén presionado el botón **BOOT** mientras ejecutas el comando.
@@ -118,13 +119,13 @@ esptool --port COM3 erase_flash
 Para el **Emisor**:
 ```bash
 cd Emisor
-esptool --port COM3 --baud 460800 write_flash -z 0x1000 ESP32_GENERIC-20260406-v1.28.0.bin
+python -m esptool --port COM3 --baud 460800 write_flash -z 0x1000 ESP32_GENERIC-20260406-v1.28.0.bin
 ```
 
 Para el **Receptor**:
 ```bash
 cd Receptor
-esptool --port COM3 --baud 460800 write_flash -z 0x1000 ESP32_GENERIC-20260406-v1.28.0.bin
+python -m esptool --port COM3 --baud 460800 write_flash -z 0x1000 ESP32_GENERIC-20260406-v1.28.0.bin
 ```
 
 > Espera a que termine (tarda ~30 segundos). Al finalizar verás "Hash of data verified".
